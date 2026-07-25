@@ -270,5 +270,49 @@ def listening_year_in_review(params: YearInReviewInput) -> list:
     return content
 
 
+class TopAlbumsInput(BaseModel):
+    limit: int = Field(default=15, description="Número máximo de álbumes a devolver")
+    with_art: bool = Field(
+        default=False,
+        description="Incluir carátula por álbum. Más lento: 2 llamadas a "
+        "MusicBrainz por álbum a 1 req/seg.",
+    )
+
+
+@mcp.tool(structured_output=False)
+def listening_top_albums(params: TopAlbumsInput) -> list:
+    """Top álbumes por número de reproducciones, con minutos totales.
+    Para responder 'qué disco he escuchado más', a diferencia de
+    listening_year_in_review que agrupa por artista."""
+    conn = _db()
+    rows = conn.execute(
+        """
+        SELECT artist, album,
+               COUNT(*) AS plays,
+               ROUND(SUM(minutes), 1) AS minutes
+        FROM plays
+        WHERE substantial = 1 AND album IS NOT NULL
+        GROUP BY artist, album
+        ORDER BY plays DESC
+        LIMIT ?
+        """,
+        (params.limit,),
+    ).fetchall()
+    conn.close()
+    if not rows:
+        return ["Sin datos de álbumes."]
+    text = "\n".join(
+        f"{r['album']} — {r['artist']} — {r['plays']} plays, {r['minutes']} min"
+        for r in rows
+    )
+    content: list = [text]
+    if params.with_art:
+        for r in rows:
+            art = _cover_art(r["artist"], r["album"])
+            if art:
+                content.append(art)
+    return content
+
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")

@@ -68,6 +68,7 @@ Reinicia y pregunta algo como:
 | `listening_expand_artist` | Candidatos nuevos vía MusicBrainz (miembros, colaboradores, sello) |
 | `listening_artist_profile` | Perfil completo de un artista: plays, convicción, rango temporal, carátula del álbum más escuchado |
 | `listening_year_in_review` | Top artistas de un año por minutos escuchados (`with_art` opcional) |
+| `listening_top_albums` | Top álbumes por reproducciones (`with_art` opcional) |
 
 `with_art` trae la carátula de cada artista vía MusicBrainz + Cover Art
 Archive. Es más lento (1 req/seg por artista) — por defecto va desactivado.
