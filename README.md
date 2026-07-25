@@ -64,16 +64,19 @@ Reinicia y pregunta algo como:
 |---|---|
 | `listening_schema` | Esquema de la base de datos |
 | `listening_query` | SQL de solo lectura sobre tu historial |
-| `listening_find_dormant` | Artistas escuchados con atención y abandonados hace X años |
+| `listening_find_dormant` | Artistas escuchados con atención y abandonados hace X años (`with_art` opcional) |
 | `listening_expand_artist` | Candidatos nuevos vía MusicBrainz (miembros, colaboradores, sello) |
-| `listening_artist_profile` | Perfil completo de un artista: plays, convicción, rango temporal |
-| `listening_year_in_review` | Top artistas de un año por minutos escuchados |
+| `listening_artist_profile` | Perfil completo de un artista: plays, convicción, rango temporal, carátula del álbum más escuchado |
+| `listening_year_in_review` | Top artistas de un año por minutos escuchados (`with_art` opcional) |
+
+`with_art` trae la carátula de cada artista vía MusicBrainz + Cover Art
+Archive. Es más lento (1 req/seg por artista) — por defecto va desactivado.
 
 ## Privacidad
 
 - Nada de esto llama a ningún servidor tuyo ni de terceros excepto
-  MusicBrainz (solo nombres de artista, para buscar relaciones — nunca tu
-  historial).
+  MusicBrainz y Cover Art Archive (solo nombres de artista/álbum, para
+  buscar relaciones y carátulas — nunca tu historial).
 - `listening.db` vive solo en el disco de quien lo genera.
 - Si compartes este repo, comparte el código — nunca tu `.db`.
 

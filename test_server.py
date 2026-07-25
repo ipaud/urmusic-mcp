@@ -29,7 +29,38 @@ def test_year_in_review_filters_by_year_and_sorts_by_minutes(tmp_path, monkeypat
     result = listening_year_in_review(YearInReviewInput(year=2019))
 
     # Assert
-    lines = result.splitlines()
+    assert len(result) == 1  # with_art=False -> solo el bloque de texto
+    lines = result[0].splitlines()
     assert len(lines) == 2
     assert lines[0].startswith("Burial")  # más minutos que Radiohead en 2019
     assert "Radiohead" in lines[1]
+
+
+def test_cover_art_returns_none_when_no_release_group_matches(monkeypatch):
+    monkeypatch.setattr(server, "_mb_throttle", lambda: None)
+    monkeypatch.setattr(
+        server.musicbrainzngs,
+        "search_release_groups",
+        lambda **kwargs: {"release-group-list": []},
+    )
+
+    assert server._cover_art("Artista Inexistente") is None
+
+
+def test_cover_art_detects_png_vs_default_jpeg(monkeypatch):
+    monkeypatch.setattr(server, "_mb_throttle", lambda: None)
+    monkeypatch.setattr(
+        server.musicbrainzngs,
+        "search_release_groups",
+        lambda **kwargs: {"release-group-list": [{"id": "rg-123"}]},
+    )
+    monkeypatch.setattr(
+        server.musicbrainzngs,
+        "get_release_group_image_front",
+        lambda rgid, size=None: b"\x89PNG\r\n\x1a\n" + b"resto-de-bytes",
+    )
+
+    art = server._cover_art("Radiohead", "Kid A")
+
+    assert art is not None
+    assert art._mime_type == "image/png"

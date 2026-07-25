@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 import musicbrainzngs
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Image
 from pydantic import BaseModel, Field
 
 DB_PATH = Path(__file__).parent / "listening.db"  # ajusta a tu ruta real
@@ -39,6 +39,30 @@ def _db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _cover_art(artist: str, album: Optional[str] = None) -> Optional[Image]:
+    """Busca la carátula de un álbum (o la más relevante del artista si no se
+    da álbum) vía MusicBrainz + Cover Art Archive. None si no hay match o
+    el release-group no tiene carátula subida."""
+    _mb_throttle()
+    try:
+        if album:
+            search = musicbrainzngs.search_release_groups(artist=artist, releasegroup=album, limit=1)
+        else:
+            search = musicbrainzngs.search_release_groups(artist=artist, limit=1)
+    except musicbrainzngs.MusicBrainzError:
+        return None
+    groups = search.get("release-group-list", [])
+    if not groups:
+        return None
+    _mb_throttle()
+    try:
+        data = musicbrainzngs.get_release_group_image_front(groups[0]["id"], size=250)
+    except musicbrainzngs.MusicBrainzError:
+        return None
+    fmt = "png" if data[:8] == b"\x89PNG\r\n\x1a\n" else "jpeg"
+    return Image(data=data, format=fmt)
 
 
 # ---------- Tools de exploración directa ----------
@@ -91,10 +115,15 @@ class DormantInput(BaseModel):
     min_dormant_years: float = Field(
         default=5.0, description="Años mínimos desde la última escucha"
     )
+    with_art: bool = Field(
+        default=False,
+        description="Incluir carátula por artista. Más lento: 2 llamadas a "
+        "MusicBrainz por artista a 1 req/seg.",
+    )
 
 
-@mcp.tool()
-def listening_find_dormant(params: DormantInput) -> str:
+@mcp.tool(structured_output=False)
+def listening_find_dormant(params: DormantInput) -> list:
     """Encuentra artistas escuchados con atención (alta finalización, varios temas)
     y luego abandonados hace X años. El lead clásico de 'lo probé, me gustó, corté el hábito'."""
     conn = _db()
@@ -112,12 +141,19 @@ def listening_find_dormant(params: DormantInput) -> str:
     ).fetchall()
     conn.close()
     if not rows:
-        return "Sin candidatos con esos criterios."
-    return "\n".join(
+        return ["Sin candidatos con esos criterios."]
+    text = "\n".join(
         f"{r['artist']} — {r['tracks']} temas, {r['completion_rate']*100:.0f}% completado, "
         f"dormido {r['years_since_last']:.1f} años"
         for r in rows
     )
+    content: list = [text]
+    if params.with_art:
+        for r in rows:
+            art = _cover_art(r["artist"])
+            if art:
+                content.append(art)
+    return content
 
 
 class ExpandInput(BaseModel):
@@ -162,27 +198,44 @@ class ProfileInput(BaseModel):
     artist: str
 
 
-@mcp.tool()
-def listening_artist_profile(params: ProfileInput) -> str:
+@mcp.tool(structured_output=False)
+def listening_artist_profile(params: ProfileInput) -> list:
     """Perfil de escucha completo de un artista: plays, minutos, temas distintos,
-    álbumes explorados, rango temporal y score de convicción."""
+    álbumes explorados, rango temporal, score de convicción y carátula del
+    álbum más escuchado."""
     conn = _db()
     row = conn.execute(
         "SELECT * FROM artists WHERE artist = ?", (params.artist,)
     ).fetchone()
-    conn.close()
     if not row:
-        return f"Sin datos para '{params.artist}'."
-    return "\n".join(f"{k}: {row[k]}" for k in row.keys())
+        conn.close()
+        return [f"Sin datos para '{params.artist}'."]
+    top_album = conn.execute(
+        "SELECT album FROM plays WHERE artist = ? AND album IS NOT NULL "
+        "GROUP BY album ORDER BY SUM(minutes) DESC LIMIT 1",
+        (params.artist,),
+    ).fetchone()
+    conn.close()
+    content: list = ["\n".join(f"{k}: {row[k]}" for k in row.keys())]
+    if top_album:
+        art = _cover_art(params.artist, top_album["album"])
+        if art:
+            content.append(art)
+    return content
 
 
 class YearInReviewInput(BaseModel):
     year: int = Field(description="Año a analizar, ej. 2019")
     limit: int = Field(default=15, description="Número máximo de artistas a devolver")
+    with_art: bool = Field(
+        default=False,
+        description="Incluir carátula por artista. Más lento: 2 llamadas a "
+        "MusicBrainz por artista a 1 req/seg.",
+    )
 
 
-@mcp.tool()
-def listening_year_in_review(params: YearInReviewInput) -> str:
+@mcp.tool(structured_output=False)
+def listening_year_in_review(params: YearInReviewInput) -> list:
     """Top artistas de un año concreto por minutos escuchados, con temas distintos.
     Para ver qué dominó tu año o comparar la evolución entre años."""
     conn = _db()
@@ -203,11 +256,18 @@ def listening_year_in_review(params: YearInReviewInput) -> str:
     ).fetchall()
     conn.close()
     if not rows:
-        return f"Sin datos para {params.year}."
-    return "\n".join(
+        return [f"Sin datos para {params.year}."]
+    text = "\n".join(
         f"{r['artist']} — {r['minutes']} min, {r['plays']} plays, {r['tracks']} temas distintos"
         for r in rows
     )
+    content: list = [text]
+    if params.with_art:
+        for r in rows:
+            art = _cover_art(r["artist"])
+            if art:
+                content.append(art)
+    return content
 
 
 if __name__ == "__main__":
