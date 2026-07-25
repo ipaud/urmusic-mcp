@@ -176,5 +176,39 @@ def listening_artist_profile(params: ProfileInput) -> str:
     return "\n".join(f"{k}: {row[k]}" for k in row.keys())
 
 
+class YearInReviewInput(BaseModel):
+    year: int = Field(description="Año a analizar, ej. 2019")
+    limit: int = Field(default=15, description="Número máximo de artistas a devolver")
+
+
+@mcp.tool()
+def listening_year_in_review(params: YearInReviewInput) -> str:
+    """Top artistas de un año concreto por minutos escuchados, con temas distintos.
+    Para ver qué dominó tu año o comparar la evolución entre años."""
+    conn = _db()
+    rows = conn.execute(
+        """
+        SELECT artist,
+               COUNT(*) AS plays,
+               ROUND(SUM(minutes), 1) AS minutes,
+               COUNT(DISTINCT track) AS tracks
+        FROM plays
+        WHERE substantial = 1
+          AND strftime('%Y', date) = ?
+        GROUP BY artist
+        ORDER BY minutes DESC
+        LIMIT ?
+        """,
+        (str(params.year), params.limit),
+    ).fetchall()
+    conn.close()
+    if not rows:
+        return f"Sin datos para {params.year}."
+    return "\n".join(
+        f"{r['artist']} — {r['minutes']} min, {r['plays']} plays, {r['tracks']} temas distintos"
+        for r in rows
+    )
+
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")

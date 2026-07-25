@@ -67,6 +67,7 @@ Reinicia y pregunta algo como:
 | `listening_find_dormant` | Artistas escuchados con atención y abandonados hace X años |
 | `listening_expand_artist` | Candidatos nuevos vía MusicBrainz (miembros, colaboradores, sello) |
 | `listening_artist_profile` | Perfil completo de un artista: plays, convicción, rango temporal |
+| `listening_year_in_review` | Top artistas de un año por minutos escuchados |
 
 ## Privacidad
 
