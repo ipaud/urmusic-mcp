@@ -1,4 +1,4 @@
-# musica-mcp
+# urmusic-mcp
 
 Un MCP personal sobre tu propio historial de Spotify. Corre 100% en tu
 máquina — tu JSON nunca sale de tu disco, nunca se sube a ningún servidor.
@@ -75,3 +75,7 @@ Reinicia y pregunta algo como:
   historial).
 - `listening.db` vive solo en el disco de quien lo genera.
 - Si compartes este repo, comparte el código — nunca tu `.db`.
+
+## Licencia
+
+[MIT](LICENSE)
