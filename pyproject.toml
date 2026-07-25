@@ -6,3 +6,8 @@ dependencies = [
     "mcp[cli]>=1.6.0",
     "musicbrainzngs>=0.7.1",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
