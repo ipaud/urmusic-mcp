@@ -116,9 +116,9 @@ class DormantInput(BaseModel):
         default=5.0, description="Años mínimos desde la última escucha"
     )
     with_art: bool = Field(
-        default=False,
-        description="Incluir carátula por artista. Más lento: 2 llamadas a "
-        "MusicBrainz por artista a 1 req/seg.",
+        default=True,
+        description="Incluir carátula por artista (2 llamadas a MusicBrainz "
+        "por artista a 1 req/seg). Pon False para respuesta rápida sin imágenes.",
     )
 
 
@@ -163,10 +163,15 @@ class ExpandInput(BaseModel):
         description="True = incluye compañeros de sello (más candidatos, menos precisión). "
         "False = solo vínculos directos de membresía/colaboración.",
     )
+    with_art: bool = Field(
+        default=True,
+        description="Incluir carátula por candidato (2 llamadas a MusicBrainz "
+        "por candidato a 1 req/seg). Pon False para respuesta rápida sin imágenes.",
+    )
 
 
-@mcp.tool()
-def listening_expand_artist(params: ExpandInput) -> str:
+@mcp.tool(structured_output=False)
+def listening_expand_artist(params: ExpandInput) -> list:
     """Expande un artista semilla vía MusicBrainz: miembros, colaboradores y,
     opcionalmente, compañeros de sello. Para encontrar música nueva conectada
     a lo que ya te ha convencido, no solo lo que el algoritmo de Spotify sugiere."""
@@ -174,24 +179,32 @@ def listening_expand_artist(params: ExpandInput) -> str:
     try:
         search = musicbrainzngs.search_artists(artist=params.artist, limit=1)
     except musicbrainzngs.MusicBrainzError as e:
-        return f"Error MusicBrainz: {e}"
+        return [f"Error MusicBrainz: {e}"]
     matches = search.get("artist-list", [])
     if not matches or matches[0]["name"].lower() != params.artist.lower():
-        return f"'{params.artist}' no tiene coincidencia exacta en MusicBrainz."
+        return [f"'{params.artist}' no tiene coincidencia exacta en MusicBrainz."]
 
     mbid = matches[0]["id"]
     _mb_throttle()
     rels = musicbrainzngs.get_artist_by_id(
         mbid, includes=["artist-rels"] + (["label-rels"] if params.include_labels else [])
     )
-    candidates = []
+    names = []
+    lines = []
     for rel in rels["artist"].get("artist-relation-list", []):
         target = rel.get("artist", {}).get("name")
         if target:
-            candidates.append(f"{target} — {rel.get('type', 'relacionado')} con {params.artist}")
-    if not candidates:
-        return f"Sin candidatos por relación directa para '{params.artist}'."
-    return "\n".join(candidates)
+            names.append(target)
+            lines.append(f"{target} — {rel.get('type', 'relacionado')} con {params.artist}")
+    if not lines:
+        return [f"Sin candidatos por relación directa para '{params.artist}'."]
+    content: list = ["\n".join(lines)]
+    if params.with_art:
+        for name in names:
+            art = _cover_art(name)
+            if art:
+                content.append(art)
+    return content
 
 
 class ProfileInput(BaseModel):
@@ -228,9 +241,9 @@ class YearInReviewInput(BaseModel):
     year: int = Field(description="Año a analizar, ej. 2019")
     limit: int = Field(default=15, description="Número máximo de artistas a devolver")
     with_art: bool = Field(
-        default=False,
-        description="Incluir carátula por artista. Más lento: 2 llamadas a "
-        "MusicBrainz por artista a 1 req/seg.",
+        default=True,
+        description="Incluir carátula por artista (2 llamadas a MusicBrainz "
+        "por artista a 1 req/seg). Pon False para respuesta rápida sin imágenes.",
     )
 
 
@@ -273,9 +286,9 @@ def listening_year_in_review(params: YearInReviewInput) -> list:
 class TopAlbumsInput(BaseModel):
     limit: int = Field(default=15, description="Número máximo de álbumes a devolver")
     with_art: bool = Field(
-        default=False,
-        description="Incluir carátula por álbum. Más lento: 2 llamadas a "
-        "MusicBrainz por álbum a 1 req/seg.",
+        default=True,
+        description="Incluir carátula por álbum (2 llamadas a MusicBrainz por "
+        "álbum a 1 req/seg). Pon False para respuesta rápida sin imágenes.",
     )
 
 

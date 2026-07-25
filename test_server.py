@@ -26,10 +26,10 @@ def test_year_in_review_filters_by_year_and_sorts_by_minutes(tmp_path, monkeypat
     monkeypatch.setattr(server, "DB_PATH", db_path)
 
     # Act
-    result = listening_year_in_review(YearInReviewInput(year=2019))
+    result = listening_year_in_review(YearInReviewInput(year=2019, with_art=False))
 
     # Assert
-    assert len(result) == 1  # with_art=False -> solo el bloque de texto
+    assert len(result) == 1  # with_art=False -> solo el bloque de texto, sin red
     lines = result[0].splitlines()
     assert len(lines) == 2
     assert lines[0].startswith("Burial")  # más minutos que Radiohead en 2019
@@ -58,10 +58,10 @@ def test_top_albums_groups_by_album_and_sorts_by_plays(tmp_path, monkeypatch):
     monkeypatch.setattr(server, "DB_PATH", db_path)
 
     # Act
-    result = listening_top_albums(TopAlbumsInput())
+    result = listening_top_albums(TopAlbumsInput(with_art=False))
 
     # Assert
-    assert len(result) == 1  # with_art=False -> solo texto
+    assert len(result) == 1  # with_art=False -> solo texto, sin red
     lines = result[0].splitlines()
     assert lines[0].startswith("Dirty Rice")  # 2 plays > 1 play
     assert "Arena En Los Bolsillos" in lines[1]

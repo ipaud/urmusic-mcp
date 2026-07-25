@@ -64,14 +64,16 @@ Reinicia y pregunta algo como:
 |---|---|
 | `listening_schema` | Esquema de la base de datos |
 | `listening_query` | SQL de solo lectura sobre tu historial |
-| `listening_find_dormant` | Artistas escuchados con atención y abandonados hace X años (`with_art` opcional) |
-| `listening_expand_artist` | Candidatos nuevos vía MusicBrainz (miembros, colaboradores, sello) |
+| `listening_find_dormant` | Artistas escuchados con atención y abandonados hace X años, con carátulas |
+| `listening_expand_artist` | Candidatos nuevos vía MusicBrainz (miembros, colaboradores, sello), con carátulas |
 | `listening_artist_profile` | Perfil completo de un artista: plays, convicción, rango temporal, carátula del álbum más escuchado |
-| `listening_year_in_review` | Top artistas de un año por minutos escuchados (`with_art` opcional) |
-| `listening_top_albums` | Top álbumes por reproducciones (`with_art` opcional) |
+| `listening_year_in_review` | Top artistas de un año por minutos escuchados, con carátulas |
+| `listening_top_albums` | Top álbumes por reproducciones, con carátulas |
 
-`with_art` trae la carátula de cada artista vía MusicBrainz + Cover Art
-Archive. Es más lento (1 req/seg por artista) — por defecto va desactivado.
+Las carátulas vienen de MusicBrainz + Cover Art Archive y van activadas por
+defecto (`with_art=true`) en los tools que devuelven varios artistas/álbumes.
+Cada una cuesta 2 llamadas a MusicBrainz a 1 req/seg, así que listas largas
+tardan más — pon `with_art=false` si prefieres respuesta rápida sin imágenes.
 
 ## Privacidad
 
