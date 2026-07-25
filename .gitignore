@@ -1,0 +1,4 @@
+listening.db
+*.json
+.venv/
+__pycache__/
