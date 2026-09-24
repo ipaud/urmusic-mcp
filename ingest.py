@@ -71,27 +71,43 @@ def build_db(records, db_path: Path):
 
     # Tabla agregada por artista — AJUSTA la fórmula de conviction a la
     # que ya usa tu taste.py si difiere de esta.
+    # completion_rate se calcula sobre TODAS las reproducciones (incluidos
+    # skips); el resto de métricas solo sobre las escuchas sustanciales.
     conn.execute(
         """
         CREATE TABLE artists AS
         SELECT
             artist,
-            COUNT(*) AS plays,
-            SUM(minutes) AS minutes,
-            COUNT(DISTINCT track) AS tracks,
-            COUNT(DISTINCT album) AS albums,
-            (julianday('now') - julianday(MIN(date))) / 365.25 AS span_years,
-            (julianday('now') - julianday(MAX(date))) / 365.25 AS years_since_last,
-            AVG(substantial) AS completion_rate,
+            plays,
+            minutes,
+            tracks,
+            albums,
+            span_years,
+            years_since_last,
+            completion_rate,
             -- conviction: pondera profundidad de catálogo + fidelidad temporal, no volumen bruto
-            (COUNT(DISTINCT track) * 1.0)
-                + (COUNT(DISTINCT album) * 2.0)
-                + ((julianday('now') - julianday(MIN(date))) / 365.25)
-                + (AVG(substantial) * 20)
+            (tracks * 1.0)
+                + (albums * 2.0)
+                + span_years
+                + (completion_rate * 20)
                 AS conviction
-        FROM plays
-        WHERE substantial = 1
-        GROUP BY artist
+        FROM (
+            SELECT
+                artist,
+                SUM(substantial) AS plays,
+                SUM(CASE WHEN substantial = 1 THEN minutes END) AS minutes,
+                COUNT(DISTINCT CASE WHEN substantial = 1 THEN track END) AS tracks,
+                COUNT(DISTINCT CASE WHEN substantial = 1 THEN album END) AS albums,
+                (julianday(MAX(CASE WHEN substantial = 1 THEN date END))
+                    - julianday(MIN(CASE WHEN substantial = 1 THEN date END))) / 365.25
+                    AS span_years,
+                (julianday('now') - julianday(MAX(CASE WHEN substantial = 1 THEN date END)))
+                    / 365.25 AS years_since_last,
+                AVG(substantial) AS completion_rate
+            FROM plays
+            GROUP BY artist
+            HAVING SUM(substantial) > 0
+        )
         """
     )
     conn.commit()

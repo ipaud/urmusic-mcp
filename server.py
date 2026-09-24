@@ -186,16 +186,38 @@ def listening_expand_artist(params: ExpandInput) -> list:
 
     mbid = matches[0]["id"]
     _mb_throttle()
-    rels = musicbrainzngs.get_artist_by_id(
-        mbid, includes=["artist-rels"] + (["label-rels"] if params.include_labels else [])
-    )
+    try:
+        rels = musicbrainzngs.get_artist_by_id(
+            mbid, includes=["artist-rels"] + (["label-rels"] if params.include_labels else [])
+        )
+    except musicbrainzngs.MusicBrainzError as e:
+        return [f"Error MusicBrainz: {e}"]
     names = []
     lines = []
+    seen = {params.artist.lower()}
     for rel in rels["artist"].get("artist-relation-list", []):
         target = rel.get("artist", {}).get("name")
-        if target:
+        if target and target.lower() not in seen:
+            seen.add(target.lower())
             names.append(target)
             lines.append(f"{target} — {rel.get('type', 'relacionado')} con {params.artist}")
+
+    if params.include_labels:
+        for label_rel in rels["artist"].get("label-relation-list", []):
+            label = label_rel.get("label", {})
+            if not label.get("id"):
+                continue
+            _mb_throttle()
+            try:
+                label_data = musicbrainzngs.get_label_by_id(label["id"], includes=["artist-rels"])
+            except musicbrainzngs.MusicBrainzError:
+                continue
+            for rel in label_data["label"].get("artist-relation-list", []):
+                target = rel.get("artist", {}).get("name")
+                if target and target.lower() not in seen:
+                    seen.add(target.lower())
+                    names.append(target)
+                    lines.append(f"{target} — compañero de sello en {label.get('name', '?')}")
     if not lines:
         return [f"Sin candidatos por relación directa para '{params.artist}'."]
     content: list = ["\n".join(lines)]
