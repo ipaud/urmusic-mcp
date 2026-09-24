@@ -1,7 +1,7 @@
 import sqlite3
 
 import server
-from server import TopAlbumsInput, YearInReviewInput, listening_top_albums, listening_year_in_review
+from server import ExpandInput, TopAlbumsInput, YearInReviewInput, listening_expand_artist, listening_top_albums, listening_year_in_review
 
 
 def test_year_in_review_filters_by_year_and_sorts_by_minutes(tmp_path, monkeypatch):
@@ -95,3 +95,63 @@ def test_cover_art_detects_png_vs_default_jpeg(monkeypatch):
 
     assert art is not None
     assert art._mime_type == "image/png"
+
+
+def _mock_mb_seed(monkeypatch, artist_payload):
+    monkeypatch.setattr(server, "_mb_throttle", lambda: None)
+    monkeypatch.setattr(
+        server.musicbrainzngs,
+        "search_artists",
+        lambda **kwargs: {"artist-list": [{"id": "seed-id", "name": "Radiohead"}]},
+    )
+    monkeypatch.setattr(server.musicbrainzngs, "get_artist_by_id", artist_payload)
+
+
+def test_expand_artist_include_labels_adds_label_mates(monkeypatch):
+    _mock_mb_seed(
+        monkeypatch,
+        lambda mbid, includes=None: {
+            "artist": {
+                "artist-relation-list": [
+                    {"type": "member of band", "artist": {"name": "Thom Yorke"}},
+                ],
+                "label-relation-list": [
+                    {"label": {"id": "xl-id", "name": "XL Recordings"}},
+                ],
+            }
+        },
+    )
+    monkeypatch.setattr(
+        server.musicbrainzngs,
+        "get_label_by_id",
+        lambda lid, includes=None: {
+            "label": {
+                "artist-relation-list": [
+                    {"artist": {"name": "Radiohead"}},  # la semilla no se repite
+                    {"artist": {"name": "Thom Yorke"}},  # ni lo ya listado
+                    {"artist": {"name": "Adele"}},
+                ]
+            }
+        },
+    )
+
+    result = listening_expand_artist(
+        ExpandInput(artist="Radiohead", include_labels=True, with_art=False)
+    )
+
+    lines = result[0].splitlines()
+    assert lines == [
+        "Thom Yorke — member of band con Radiohead",
+        "Adele — compañero de sello en XL Recordings",
+    ]
+
+
+def test_expand_artist_returns_error_when_relations_lookup_fails(monkeypatch):
+    def boom(mbid, includes=None):
+        raise server.musicbrainzngs.WebServiceError("503")
+
+    _mock_mb_seed(monkeypatch, boom)
+
+    result = listening_expand_artist(ExpandInput(artist="Radiohead", with_art=False))
+
+    assert result[0].startswith("Error MusicBrainz")
